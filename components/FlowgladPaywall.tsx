@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Check, ExternalLink, Loader2, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Check, ExternalLink, Loader2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { ScenarioConfig } from '../types';
 
 interface FlowgladPaywallProps {
@@ -79,7 +79,7 @@ const FlowgladPaywall: React.FC<FlowgladPaywallProps> = ({ isOpen, onClose, onUp
          {/* Form Side */}
          <div className="w-full md:w-3/5 p-8 bg-white flex flex-col">
             {step === 'plans' && (
-               <div className="h-full flex flex-col">
+               <div className="h-full flex flex-col animate-in slide-in-from-left-8 duration-300">
                   <div className="text-center mb-8">
                      <h3 className="text-lg font-bold text-slate-800">Select Plan</h3>
                   </div>
@@ -111,7 +111,14 @@ const FlowgladPaywall: React.FC<FlowgladPaywallProps> = ({ isOpen, onClose, onUp
 
             {step === 'checkout' && (
                <div className="h-full flex flex-col animate-in slide-in-from-right-8 duration-300">
-                  <div className="text-center mb-6">
+                  <div className="relative text-center mb-6 flex items-center justify-center">
+                     <button 
+                       onClick={() => setStep('plans')}
+                       className="absolute left-0 p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded-full hover:bg-indigo-50"
+                       title="Back to Plans"
+                     >
+                       <ArrowLeft size={20} />
+                     </button>
                      <h3 className="text-lg font-bold text-slate-800">Secure Checkout</h3>
                   </div>
 
