@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { ReportData } from "../types";
+import { ReportData, UserState, ScenarioConfig, PlanTier } from "../types";
 
 // Initialize the Gemini API client
 const apiKey = process.env.API_KEY || '';
@@ -134,5 +134,62 @@ export const generateAnalysisReport = async (prompt: string): Promise<ReportData
       keyMetrics: [],
       chart: { title: "Error", type: "bar", labels: [], data: [] }
     };
+  }
+};
+
+export const generateDashboardInsight = async (query: string, userState: UserState, scenario: ScenarioConfig): Promise<string> => {
+  if (!apiKey) {
+    return "I can't analyze the live data without a valid Gemini API key. However, based on the simulation, revenue looks positive.";
+  }
+
+  // Extract detailed recent history to ground the insights
+  const historyDetails = userState.history.slice(0, 10).map(h => ({
+    item: h.itemName,
+    score: h.reportData.score,
+    reason: h.reportData.summary,
+    recommendation: h.reportData.recommendation
+  }));
+
+  // Serialize context for the LLM
+  const context = JSON.stringify({
+    productName: scenario.name,
+    userTier: userState.tier,
+    revenue: userState.walletBalance,
+    usageCount: userState.usageCount,
+    historyCount: userState.history.length,
+    recentActivity: historyDetails,
+    pricing: {
+      freeLimit: scenario.freeLimit,
+      proPrice: scenario.proPlan.price,
+      overageCost: scenario.proPlan.overageCost
+    }
+  });
+
+  const prompt = `
+    You are an AI Data Analyst for the "${scenario.name}" admin dashboard.
+    The user is an Admin asking about the current user's behavior.
+    
+    CONTEXT DATA: ${context}
+    
+    USER QUESTION: "${query}"
+    
+    INSTRUCTIONS:
+    1. Answer as a helpful analyst.
+    2. Be concise (max 2-3 sentences).
+    3. Use specific numbers from the context.
+    4. CRITICAL: If asked "Why is quality low/high", reference specific items in 'recentActivity' and their 'reason'. Do not hallucinate.
+    5. If 'recentActivity' is empty, state that no data has been generated yet so you cannot analyze quality trends.
+    6. If the user asks about projections, extrapolate based on current usage.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    return response.text || "I couldn't generate an insight at this moment.";
+  } catch (error) {
+    console.error("Gemini Insight Error:", error);
+    return "Error analyzing data.";
   }
 };

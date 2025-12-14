@@ -1,15 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserState, ScenarioConfig, PlanTier } from '../types';
 import { 
   TrendingUp, Users, DollarSign, Activity, Sparkles, BarChart2, 
-  Info, BookOpen, Cpu, GitBranch, Shield, Zap, X, HelpCircle 
+  Info, BookOpen, Cpu, GitBranch, Shield, Zap, X, HelpCircle,
+  MessageSquare, Send, Bot, User, AlertCircle
 } from 'lucide-react';
 import { CircularGauge, ActivityChart } from './VizComponents';
+import { generateDashboardInsight } from '../services/geminiService';
 
 interface AdminDashboardProps {
   userState: UserState;
   scenario: ScenarioConfig;
   onClose: () => void;
+}
+
+interface ChatMessage {
+  role: 'user' | 'ai';
+  text: string;
 }
 
 const LogicCard: React.FC<{ title: string; icon: any; children: React.ReactNode; color?: string }> = ({ title, icon: Icon, children, color = "text-indigo-400" }) => (
@@ -26,20 +33,38 @@ const LogicCard: React.FC<{ title: string; icon: any; children: React.ReactNode;
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, onClose }) => {
   const [showGuide, setShowGuide] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    { role: 'ai', text: `Hello! I'm your VibeIntelligence analyst. Ask me anything about the ${scenario.name} performance data.` }
+  ]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const isFree = userState.tier === PlanTier.FREE;
-  const currentLimit = isFree ? scenario.freeLimit : (typeof scenario.proPlan.limit === 'number' ? scenario.proPlan.limit : 99999);
-  const usagePct = (userState.usageCount / currentLimit) * 100;
+  const isUnlimited = !isFree && scenario.proPlan.limit === 'unlimited';
   
-  // Inference Logic
+  // Calculate Gauge Max
+  // If unlimited, we create a visual max that is always a bit higher than current usage to show activity
+  const visualMax = isUnlimited 
+      ? Math.max(userState.usageCount + 20, 100) 
+      : (isFree ? scenario.freeLimit : (scenario.proPlan.limit as number));
+  
+  const usagePct = (userState.usageCount / visualMax) * 100;
+  
+  // Auto-scroll chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
+
+  // Inference Logic (Top Cards)
   let inference = { title: "Monitoring", desc: "User is exploring the platform.", color: "text-blue-400", borderColor: "border-blue-500", bg: "bg-blue-500/10" };
   let conversionProb = 10;
 
   if (isFree) {
-    if (usagePct >= 100) {
+    if (userState.usageCount >= scenario.freeLimit) {
       inference = { title: "Paywall Triggered", desc: "User hit free limits. High upgrade intent detected.", color: "text-red-400", borderColor: "border-red-500", bg: "bg-red-500/10" };
       conversionProb = 85;
-    } else if (usagePct > 60) {
+    } else if (userState.usageCount > (scenario.freeLimit * 0.6)) {
       inference = { title: "Approaching Limit", desc: "Usage velocity suggests cap will be hit soon.", color: "text-yellow-400", borderColor: "border-yellow-500", bg: "bg-yellow-500/10" };
       conversionProb = 45;
     }
@@ -51,14 +76,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
     }
   }
 
+  // Chart Data Preparation
   const historyReversed = [...userState.history].reverse();
-  const chartData = historyReversed.length > 0
-    ? historyReversed.map(h => h.reportData.score)
-    : [50, 50, 50]; 
+  const hasHistory = historyReversed.length > 0;
+
+  // Simulated data for fallback if history is empty
+  const simulatedHistory = [65, 68, 72, 69, 75, 78];
+  const simulatedLabels = ['Sim-1', 'Sim-2', 'Sim-3', 'Sim-4', 'Sim-5', 'Sim-6'];
+
+  const chartData = hasHistory ? historyReversed.map(h => h.reportData.score) : simulatedHistory;
+  const chartLabels = hasHistory ? historyReversed.map((_, i) => `Run-${i + 1}`) : simulatedLabels;
   
-  const chartLabels = historyReversed.length > 0
-    ? historyReversed.map((_, i) => `Q${i + 1}`)
-    : [];
+  // Trend Analysis
+  let trendText = "Awaiting Data";
+  let trendColor = "text-slate-500";
+  if (hasHistory) {
+     const last = chartData[chartData.length - 1];
+     const prev = chartData.length > 1 ? chartData[chartData.length - 2] : last;
+     if (last > prev) { trendText = "Quality Improving"; trendColor = "text-emerald-400"; }
+     else if (last < prev) { trendText = "Quality Declining"; trendColor = "text-red-400"; }
+     else { trendText = "Stable Performance"; trendColor = "text-blue-400"; }
+  } else {
+     trendText = "Simulated Baseline";
+     trendColor = "text-slate-500 italic";
+  }
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+
+    const userMsg = chatInput;
+    setChatInput('');
+    setChatHistory(prev => [...prev, { role: 'user', text: userMsg }]);
+    setIsChatLoading(true);
+
+    const response = await generateDashboardInsight(userMsg, userState, scenario);
+    
+    setIsChatLoading(false);
+    setChatHistory(prev => [...prev, { role: 'ai', text: response }]);
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    setChatInput(prompt);
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900 overflow-y-auto animate-in slide-in-from-bottom-10 font-sans text-slate-200">
@@ -198,16 +257,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
             </div>
         </div>
 
-        {/* MIDDLE ROW: Logic & Visualization */}
+        {/* MIDDLE ROW: Logic & Intelligence Console */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* Left: Runtime Logic Panel (Explains WHY things are happening) */}
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col">
+            {/* Left Column: Logic Engine */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[520px]">
                 <div className="p-4 bg-slate-800 border-b border-slate-700 flex items-center gap-2">
                     <Cpu size={18} className="text-slate-400" />
                     <h3 className="font-bold text-slate-200">Runtime Logic Engine</h3>
                 </div>
-                <div className="p-4 space-y-4 flex-1 overflow-y-auto max-h-[400px]">
+                <div className="p-4 space-y-4 flex-1 overflow-y-auto">
                     <LogicCard title="Pricing Model" icon={DollarSign} color="text-emerald-400">
                         <p><strong>Subscription:</strong> ${scenario.proPlan.price}/{scenario.proPlan.interval}</p>
                         {scenario.proPlan.overageCost && (
@@ -231,62 +290,143 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
                             <strong className="text-purple-300">Strategy:</strong> Dynamic Gemini injection based on user prompt "{scenario.itemName}".
                         </p>
                     </LogicCard>
+
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex items-center justify-between gap-4 mt-4">
+                         <div className="flex-1">
+                            <h3 className="font-bold text-white mb-1 flex items-center gap-2 text-sm">
+                                <BarChart2 size={14} className="text-indigo-400" /> 
+                                {isUnlimited ? "Usage Volume" : "Entitlements"}
+                            </h3>
+                            <div className="text-[10px] text-slate-500">
+                                {isUnlimited ? "Unlimited Plan Activity" : "Plan Consumption"}
+                            </div>
+                         </div>
+                         <div className="flex-shrink-0 scale-75 origin-right">
+                            <CircularGauge 
+                                value={userState.usageCount} 
+                                max={visualMax} 
+                                color={usagePct >= 100 && !isUnlimited ? 'text-red-500' : (isFree ? 'text-yellow-500' : 'text-emerald-500')} 
+                                label=""
+                            />
+                         </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Center/Right: Visualizations */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* Right Column: VibeIntelligence Console (Chart + Chat) */}
+            <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[520px]">
                 
-                {/* Usage Gauge Area */}
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 flex flex-col md:flex-row items-center justify-between gap-8">
-                     <div className="flex-1">
-                        <h3 className="font-bold text-white mb-2 flex items-center gap-2">
-                            <BarChart2 size={18} className="text-indigo-400" /> 
-                            Entitlement Consumption
-                        </h3>
-                        <p className="text-sm text-slate-400 leading-relaxed">
-                            Visual representation of the user's progress towards their plan limits. 
-                            {isFree ? ' Once the gauge hits 100%, the paywall effectively blocks further API calls.' : ' As a Pro user, usage is tracked for potential overage billing.'}
-                        </p>
-                     </div>
-                     <div className="flex-shrink-0">
-                        <CircularGauge 
-                            value={userState.usageCount} 
-                            max={currentLimit} 
-                            color={usagePct >= 100 ? 'text-red-500' : (isFree ? 'text-yellow-500' : 'text-emerald-500')} 
-                            label={isFree ? "Free Allowance" : "Pro Plan Usage"}
-                        />
-                     </div>
-                </div>
-
-                {/* Trend Chart Area */}
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                {/* Chart Section (Top Half) */}
+                <div className="h-1/2 p-6 border-b border-slate-700 bg-slate-800/80 flex flex-col">
                      <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-white flex items-center gap-2">
                             <TrendingUp size={18} className="text-indigo-400" /> 
-                            Result Quality Trends
+                            Quality Trends
                         </h3>
                         <div className="flex gap-4 text-xs">
                             <div className="flex items-center gap-1">
-                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span> Score
+                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                <span className="text-slate-400">AI Health Score</span>
                             </div>
                         </div>
                      </div>
                      
-                     <div className="w-full h-48 bg-slate-900/50 rounded-lg p-4 border border-slate-700/50 relative">
-                        {historyReversed.length > 0 ? (
-                            <ActivityChart data={chartData} labels={chartLabels} color="text-indigo-500" />
-                        ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
-                                <Activity size={32} className="mb-2 opacity-50" />
-                                <p className="text-sm font-medium">No Data Points</p>
-                                <p className="text-xs">User has not generated any reports yet.</p>
-                            </div>
-                        )}
+                     <div className="flex-1 relative w-full min-h-0">
+                        <ActivityChart 
+                            data={chartData} 
+                            labels={chartLabels} 
+                            color={hasHistory ? "text-indigo-500" : "text-slate-600"} 
+                        />
                      </div>
-                     <p className="mt-3 text-xs text-slate-500 text-center">
-                        Real-time tracking of the "Health Score" returned by the AI analysis engine for each query.
-                     </p>
+                     <div className="mt-2 flex items-center gap-2 text-xs">
+                         <span className="text-slate-500">Trend Analysis:</span>
+                         <span className={`font-bold uppercase tracking-wider ${trendColor}`}>
+                            {trendText}
+                         </span>
+                     </div>
+                </div>
+
+                {/* Chat Section (Bottom Half) */}
+                <div className="h-1/2 flex flex-col bg-slate-900/50">
+                    {/* Chat Header */}
+                    <div className="px-4 py-2 border-b border-slate-700/50 bg-slate-800/50 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                             <Sparkles size={14} className="text-indigo-400" />
+                             <span className="text-xs font-bold text-indigo-100 uppercase tracking-wider">Ask the Data</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500">AI Analyst Active</span>
+                    </div>
+
+                    {/* Messages Area */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {chatHistory.map((msg, i) => (
+                            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                {msg.role === 'ai' && (
+                                    <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                                        <Bot size={14} className="text-indigo-400" />
+                                    </div>
+                                )}
+                                <div className={`px-4 py-2 rounded-2xl text-sm max-w-[85%] ${
+                                    msg.role === 'user' 
+                                        ? 'bg-indigo-600 text-white rounded-br-none' 
+                                        : 'bg-slate-700 text-slate-200 rounded-tl-none'
+                                }`}>
+                                    {msg.text}
+                                </div>
+                                {msg.role === 'user' && (
+                                    <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 mt-1">
+                                        <User size={14} className="text-slate-400" />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {isChatLoading && (
+                             <div className="flex gap-3 justify-start">
+                                <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                                    <Bot size={14} className="text-indigo-400" />
+                                </div>
+                                <div className="bg-slate-700 px-4 py-2 rounded-2xl rounded-tl-none flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-75"></span>
+                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-150"></span>
+                                </div>
+                             </div>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+
+                    {/* Input Area */}
+                    <div className="p-3 bg-slate-800 border-t border-slate-700">
+                        {/* Quick Prompts */}
+                        <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
+                            {["Analyze revenue trends", "Project next month", "Why was the last score low?", "User retention status"].map((p) => (
+                                <button 
+                                    key={p}
+                                    onClick={() => handleQuickPrompt(p)}
+                                    className="whitespace-nowrap px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-full text-xs text-slate-300 transition-colors border border-slate-600"
+                                >
+                                    {p}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                placeholder="Ask a question about the live data..."
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-4 pr-12 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder:text-slate-500"
+                            />
+                            <button 
+                                onClick={handleSendMessage}
+                                disabled={isChatLoading || !chatInput.trim()}
+                                className="absolute right-2 top-2 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Send size={16} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -319,7 +459,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
                          {userState.history.length === 0 ? (
                              <tr>
                                  <td colSpan={6} className="p-12 text-center text-slate-500 italic bg-slate-800/50">
-                                     Waiting for user interaction...
+                                     <div className="flex flex-col items-center gap-2">
+                                        <AlertCircle size={24} />
+                                        <span>Waiting for user interaction...</span>
+                                        <span className="text-xs text-slate-600">Interact with the app to populate live logs</span>
+                                     </div>
                                  </td>
                              </tr>
                          ) : (
