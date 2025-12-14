@@ -1,0 +1,5 @@
+{
+  "name": "VibeWall",
+  "description": "A generative product experience engine that builds monetized dashboards on the fly using Gemini.",
+  "requestFramePermissions": []
+}

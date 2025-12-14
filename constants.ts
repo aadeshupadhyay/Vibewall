@@ -1,0 +1,123 @@
+import { ScenarioConfig } from './types';
+
+export const SCENARIOS: ScenarioConfig[] = [
+  {
+    id: 'github-security',
+    name: 'RepoGuard AI',
+    description: 'Create a paid dashboard that analyzes GitHub repositories for security risks.',
+    icon: 'ShieldAlert',
+    themeColor: 'emerald',
+    itemName: 'Repository',
+    actionName: 'Scan Security',
+    dataPrompt: 'Generate 5 realistic sounding GitHub repository names related to backend infrastructure, fintech, or crypto (e.g., "payment-gateway-v2", "crypto-wallet-core").',
+    analysisPrompt: 'Generate a security audit for repo "${itemName}". Identify 2 realistic vulnerabilities (e.g., SQL Injection, Outdated Dep). Recommendation should be a specific fix. Chart data: Bar chart showing "Vulnerability Count by Severity" (Critical, High, Medium, Low).',
+    freeLimit: 3,
+    proPlan: {
+      name: 'Pro Security',
+      price: 29,
+      interval: 'month',
+      limit: 'unlimited',
+      description: 'Unlimited scans & advanced threat detection',
+    }
+  },
+  {
+    id: 'resume-screening',
+    name: 'TalentSift',
+    description: 'Create a paid resume screening tool for recruiters.',
+    icon: 'Users',
+    themeColor: 'pink',
+    itemName: 'Candidate',
+    actionName: 'Screen Resume',
+    dataPrompt: 'Generate 5 names of fictional software engineers or product managers.',
+    analysisPrompt: 'Screen candidate "${itemName}" for a Senior React Role. Recommendation: Interview or Pass? Chart data: Bar chart comparing "Candidate Skills vs Role Requirements" (0-10 scale) for skills like React, TypeScript, Node.js, System Design.',
+    freeLimit: 2,
+    proPlan: {
+      name: 'Recruiter Pro',
+      price: 39,
+      interval: 'month',
+      limit: 25,
+      overageCost: 1,
+      description: 'Screen up to 25 candidates per month.',
+    }
+  },
+  {
+    id: 'marketing-analytics',
+    name: 'AdPulse Analytics',
+    description: 'Create a paid marketing analytics dashboard that tracks ad performance.',
+    icon: 'BarChart3',
+    themeColor: 'indigo',
+    itemName: 'Campaign',
+    actionName: 'Analyze Performance',
+    dataPrompt: 'Generate 5 realistic marketing campaign names (e.g., "Summer Sale 2024", "Retargeting_Q3").',
+    analysisPrompt: 'Analyze campaign "${itemName}". Recommendation: specific optimization tip (e.g., "Increase mobile bid"). Chart data: Line chart showing "Conversion Rate %" over the last 7 days (values between 1-5%).',
+    freeLimit: 1,
+    proPlan: {
+      name: 'Growth Plan',
+      price: 49,
+      interval: 'month',
+      limit: 10,
+      overageCost: 5,
+      description: 'Analyze up to 10 campaigns. $5 per extra analysis.',
+    }
+  },
+  {
+    id: 'legal-docs',
+    name: 'LexiScan Pro',
+    description: 'Create a paid legal document analysis tool.',
+    icon: 'Scale',
+    themeColor: 'slate',
+    itemName: 'Document',
+    actionName: 'Review Contract',
+    dataPrompt: 'Generate 5 legal document titles (e.g., "NDA_Google_2024.pdf", "Service_Agreement_v2.docx").',
+    analysisPrompt: 'Analyze legal document "${itemName}". Recommendation: clause to renegotiate. Chart data: Line chart showing "Risk Exposure" over the 5-year contract term (0-100 scale).',
+    freeLimit: 1,
+    proPlan: {
+      name: 'Professional Counsel',
+      price: 99,
+      interval: 'month',
+      limit: 'unlimited',
+      overageCost: 15,
+      description: 'Advanced NLP analysis for unlimited documents.',
+    }
+  },
+  {
+    id: 'financial-research',
+    name: 'HedgeSight',
+    description: 'Create a paid financial research dashboard for hedge fund analysts.',
+    icon: 'TrendingUp',
+    themeColor: 'blue',
+    itemName: 'Ticker',
+    actionName: 'Generate Alpha Report',
+    dataPrompt: 'Generate 5 stock tickers (e.g., AAPL, NVDA) mixed with fictional high-growth startup tickers.',
+    analysisPrompt: 'Analyze stock "${itemName}". Recommendation: Buy, Hold, or Sell with price target. Chart data: Line chart of Stock Price over last 7 days.',
+    freeLimit: 5,
+    proPlan: {
+      name: 'Analyst Terminal',
+      price: 199,
+      interval: 'month',
+      limit: 'unlimited',
+      overageCost: 10,
+      description: 'Institutional grade data access.',
+    }
+  },
+  {
+    id: 'data-science',
+    name: 'TensorFlow Explorer',
+    description: 'Create a paid dataset exploration tool for data scientists.',
+    icon: 'Database',
+    themeColor: 'purple',
+    itemName: 'Dataset',
+    actionName: 'Run Query',
+    dataPrompt: 'Generate 5 realistic large-scale dataset names (e.g., "Global_Climate_2023.csv", "Twitter_Sentiment_v2.json").',
+    analysisPrompt: 'Analyze dataset "${itemName}". Recommendation: best model to use (e.g., "XGBoost"). Chart data: Bar chart of "Feature Importance" for top 5 features.',
+    freeLimit: 4,
+    proPlan: {
+      name: 'Data Lab',
+      price: 59,
+      interval: 'month',
+      limit: 5000,
+      overageCost: 8,
+      description: 'High-compute query processing.',
+    }
+  }
+];
