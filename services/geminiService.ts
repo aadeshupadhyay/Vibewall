@@ -139,47 +139,77 @@ export const generateAnalysisReport = async (prompt: string): Promise<ReportData
 
 export const generateDashboardInsight = async (query: string, userState: UserState, scenario: ScenarioConfig): Promise<string> => {
   if (!apiKey) {
-    return "I can't analyze the live data without a valid Gemini API key. However, based on the simulation, revenue looks positive.";
+    return "I can't analyze live data without a valid Gemini API key. Please check your configuration.";
   }
 
-  // Extract detailed recent history to ground the insights
-  const historyDetails = userState.history.slice(0, 10).map(h => ({
+  // 1. Calculate Statistics directly to ensure ground truth
+  const history = userState.history;
+  const count = history.length;
+  
+  let avgScore = 0;
+  let scoreTrend = "No Data";
+  let latestItemName = "None";
+  
+  if (count > 0) {
+      const scores = history.map(h => h.reportData.score);
+      const totalScore = scores.reduce((sum, score) => sum + score, 0);
+      avgScore = Math.round(totalScore / count);
+      
+      // Determine trend (Compare latest vs previous)
+      // Note: history is often [newest, ..., oldest]
+      const latestScore = scores[0];
+      const previousScore = count > 1 ? scores[1] : latestScore;
+      
+      if (latestScore > previousScore + 5) scoreTrend = "Improving Significantly";
+      else if (latestScore > previousScore) scoreTrend = "Improving Slighty";
+      else if (latestScore < previousScore - 5) scoreTrend = "Declining Significantly";
+      else if (latestScore < previousScore) scoreTrend = "Declining Slightly";
+      else scoreTrend = "Stable";
+
+      latestItemName = history[0].itemName;
+  }
+
+  // 2. Extract detailed recent logs for the LLM to reference
+  const recentLogs = history.slice(0, 5).map(h => ({
+    timestamp: new Date(h.timestamp).toLocaleTimeString(),
     item: h.itemName,
     score: h.reportData.score,
-    reason: h.reportData.summary,
-    recommendation: h.reportData.recommendation
+    summary: h.reportData.summary, 
+    keyFindings: h.reportData.keyMetrics.map(k => `${k.label}: ${k.value}`).join(", ")
   }));
 
-  // Serialize context for the LLM
-  const context = JSON.stringify({
+  // 3. Construct Data Payload
+  const contextPayload = {
     productName: scenario.name,
     userTier: userState.tier,
-    revenue: userState.walletBalance,
-    usageCount: userState.usageCount,
-    historyCount: userState.history.length,
-    recentActivity: historyDetails,
-    pricing: {
-      freeLimit: scenario.freeLimit,
-      proPrice: scenario.proPlan.price,
-      overageCost: scenario.proPlan.overageCost
-    }
-  });
+    financials: {
+        revenue: userState.walletBalance,
+        actionsConsumed: userState.usageCount,
+        costPerAction: scenario.proPlan.overageCost
+    },
+    performanceStats: {
+        totalReports: count,
+        averageScore: avgScore,
+        currentTrend: scoreTrend,
+        latestItemAnalyzed: latestItemName
+    },
+    recentLogs: recentLogs
+  };
 
   const prompt = `
-    You are an AI Data Analyst for the "${scenario.name}" admin dashboard.
-    The user is an Admin asking about the current user's behavior.
-    
-    CONTEXT DATA: ${context}
+    You are the "VibeIntelligence" Data Analyst for the ${scenario.name} dashboard.
+    Your job is to answer the user's question based ONLY on the provided data context.
     
     USER QUESTION: "${query}"
     
-    INSTRUCTIONS:
-    1. Answer as a helpful analyst.
-    2. Be concise (max 2-3 sentences).
-    3. Use specific numbers from the context.
-    4. CRITICAL: If asked "Why is quality low/high", reference specific items in 'recentActivity' and their 'reason'. Do not hallucinate.
-    5. If 'recentActivity' is empty, state that no data has been generated yet so you cannot analyze quality trends.
-    6. If the user asks about projections, extrapolate based on current usage.
+    DATA CONTEXT: ${JSON.stringify(contextPayload, null, 2)}
+    
+    STRICT RULES:
+    1. GROUNDING: Do not hallucinate numbers. If the data says the average score is ${avgScore}, do not say it is something else.
+    2. EXPLAINING SCORES: If asked "Why is the score low/high?", look at the 'recentLogs'. Find the specific item and reference its 'summary' or 'keyFindings'.
+    3. MISSING DATA: If 'recentLogs' is empty, explicitly say "I cannot analyze trends yet because no reports have been generated. Please run an analysis first."
+    4. TONE: Professional, analytical, and helpful.
+    5. LENGTH: Keep it under 3 sentences unless asked for a detailed breakdown.
   `;
 
   try {

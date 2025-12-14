@@ -44,7 +44,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
   const isUnlimited = !isFree && scenario.proPlan.limit === 'unlimited';
   
   // Calculate Gauge Max
-  // If unlimited, we create a visual max that is always a bit higher than current usage to show activity
+  // If unlimited, we create a visual max that scales with usage to keep the gauge looking active
   const visualMax = isUnlimited 
       ? Math.max(userState.usageCount + 20, 100) 
       : (isFree ? scenario.freeLimit : (scenario.proPlan.limit as number));
@@ -76,29 +76,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
     }
   }
 
-  // Chart Data Preparation
+  // Chart Data Preparation - STRICTLY REAL DATA
+  // History is typically [Newest, ..., Oldest]
+  // Charts need [Oldest, ..., Newest] (Left to Right)
   const historyReversed = [...userState.history].reverse();
   const hasHistory = historyReversed.length > 0;
 
-  // Simulated data for fallback if history is empty
-  const simulatedHistory = [65, 68, 72, 69, 75, 78];
-  const simulatedLabels = ['Sim-1', 'Sim-2', 'Sim-3', 'Sim-4', 'Sim-5', 'Sim-6'];
-
-  const chartData = hasHistory ? historyReversed.map(h => h.reportData.score) : simulatedHistory;
-  const chartLabels = hasHistory ? historyReversed.map((_, i) => `Run-${i + 1}`) : simulatedLabels;
+  const chartData = hasHistory ? historyReversed.map(h => h.reportData.score) : [];
+  const chartLabels = hasHistory ? historyReversed.map((_, i) => `Run ${i + 1}`) : [];
   
-  // Trend Analysis
-  let trendText = "Awaiting Data";
+  // Trend Analysis Text
+  let trendText = "No Data";
   let trendColor = "text-slate-500";
+  
   if (hasHistory) {
      const last = chartData[chartData.length - 1];
      const prev = chartData.length > 1 ? chartData[chartData.length - 2] : last;
-     if (last > prev) { trendText = "Quality Improving"; trendColor = "text-emerald-400"; }
-     else if (last < prev) { trendText = "Quality Declining"; trendColor = "text-red-400"; }
-     else { trendText = "Stable Performance"; trendColor = "text-blue-400"; }
-  } else {
-     trendText = "Simulated Baseline";
-     trendColor = "text-slate-500 italic";
+     
+     if (chartData.length === 1) {
+         trendText = "Initial Baseline";
+         trendColor = "text-blue-400";
+     } else if (last > prev) { 
+         trendText = "Quality Improving"; 
+         trendColor = "text-emerald-400"; 
+     } else if (last < prev) { 
+         trendText = "Quality Declining"; 
+         trendColor = "text-red-400"; 
+     } else { 
+         trendText = "Stable Performance"; 
+         trendColor = "text-blue-400"; 
+     }
   }
 
   const handleSendMessage = async () => {
@@ -331,12 +338,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ userState, scenario, on
                         </div>
                      </div>
                      
-                     <div className="flex-1 relative w-full min-h-0">
-                        <ActivityChart 
-                            data={chartData} 
-                            labels={chartLabels} 
-                            color={hasHistory ? "text-indigo-500" : "text-slate-600"} 
-                        />
+                     <div className="flex-1 relative w-full min-h-0 flex items-center justify-center">
+                        {hasHistory ? (
+                            <ActivityChart 
+                                data={chartData} 
+                                labels={chartLabels} 
+                                color="text-indigo-500" 
+                            />
+                        ) : (
+                            <div className="text-center">
+                                <Activity size={32} className="text-slate-600 mx-auto mb-2 opacity-50" />
+                                <p className="text-sm font-medium text-slate-500">No Analysis Data Yet</p>
+                                <p className="text-xs text-slate-600">User has not performed any actions.</p>
+                            </div>
+                        )}
                      </div>
                      <div className="mt-2 flex items-center gap-2 text-xs">
                          <span className="text-slate-500">Trend Analysis:</span>
